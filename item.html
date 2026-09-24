@@ -1,0 +1,145 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CampusFood – Блюдо</title>
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+
+<nav class="navbar">
+  <div class="navbar-inner">
+    <a class="logo" href="index.html">🍽️ CampusFood</a>
+    <div class="nav-links">
+      <a href="index.html">Меню</a>
+      <a href="cart.html">Корзина <span id="cartBadge" class="badge-count hidden">0</span></a>
+      <a href="profile.html">Личный кабинет</a>
+      <a href="admin.html" id="adminLink" class="hidden">Админ</a>
+    </div>
+    <div class="nav-auth" id="navAuth">
+      <a href="auth.html" class="btn btn-outline btn-sm">Войти</a>
+    </div>
+    <div class="nav-user hidden" id="navUser">
+      <span id="navUserName" style="font-weight:600; font-size:.9rem;"></span>
+      <button class="btn btn-sm btn-secondary" id="logoutBtn">Выйти</button>
+    </div>
+  </div>
+</nav>
+
+<section class="detail-section" id="detailSection">
+  <div class="spinner"></div>
+</section>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script type="module">
+  import { auth }  from './js/firebase-config.js';
+  import { onAuthChange, getCurrentUserProfile } from './js/auth.js';
+  import { getMenuItem } from './js/menu.js';
+  import { addToCart, getCart } from './js/cart.js';
+  import { collection, query, where, getDocs, limit, orderBy } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+  import { db } from './js/firebase-config.js';
+  import { signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+
+  const params = new URLSearchParams(location.search);
+  const itemId = params.get('id');
+
+  onAuthChange(async user => {
+    if (user) {
+      document.getElementById('navAuth').classList.add('hidden');
+      document.getElementById('navUser').classList.remove('hidden');
+      const p = await getCurrentUserProfile();
+      document.getElementById('navUserName').textContent = p?.displayName || user.email;
+      if (p?.role === 'admin') document.getElementById('adminLink').classList.remove('hidden');
+      updateCartBadge();
+    } else {
+      document.getElementById('navAuth').classList.remove('hidden');
+      document.getElementById('navUser').classList.add('hidden');
+    }
+  });
+
+  document.getElementById('logoutBtn')?.addEventListener('click', () => { signOut(auth); });
+
+  async function loadItem() {
+    if (!itemId) { location.href = 'index.html'; return; }
+    const item = await getMenuItem(itemId);
+    if (!item) { document.getElementById('detailSection').innerHTML = '<div class="empty-state"><div class="icon">❌</div><p>Блюдо не найдено</p></div>'; return; }
+
+    document.title = `${item.name} – CampusFood`;
+    const catLabel = {main:'Горячее',salad:'Салат',soup:'Суп',drink:'Напиток',dessert:'Десерт',bread:'Выпечка'}[item.category] || item.category || '';
+
+    document.getElementById('detailSection').innerHTML = `
+      <a href="index.html" style="color:var(--primary);font-weight:600;display:inline-flex;align-items:center;gap:.3rem;margin-bottom:1.5rem;">← Назад в меню</a>
+      <div class="detail-grid">
+        <div class="detail-img">
+          <img src="${item.imageUrl || 'https://placehold.co/600x450/ff6b35/white?text=🍽️'}" alt="${item.name}"/>
+        </div>
+        <div class="detail-info">
+          <div class="detail-meta">
+            <span class="meta-tag">🏷️ ${catLabel}</span>
+            ${item.calories ? `<span class="meta-tag">🔥 ${item.calories} ккал</span>` : ''}
+            ${item.weight  ? `<span class="meta-tag">⚖️ ${item.weight} г</span>` : ''}
+            <span class="meta-tag status-${item.available !== false ? 'ready' : 'cancelled'}">${item.available !== false ? '✅ Доступно' : '❌ Нет в наличии'}</span>
+          </div>
+          <h1>${item.name}</h1>
+          <div class="detail-price">${item.price} ₽</div>
+          <p class="detail-desc">${item.description || 'Описание отсутствует.'}</p>
+          <div style="display:flex;gap:1rem;flex-wrap:wrap;">
+            <button class="btn btn-primary" id="addCartBtn">🛒 В корзину</button>
+            <a href="cart.html" class="btn btn-outline">Перейти в корзину</a>
+          </div>
+        </div>
+      </div>
+      <div class="related-section" id="relatedSection">
+        <h2 class="section-title">Похожие блюда</h2>
+        <div class="menu-grid" id="relatedGrid"><div class="spinner"></div></div>
+      </div>
+    `;
+
+    document.getElementById('addCartBtn').addEventListener('click', async () => {
+      if (!auth.currentUser) { location.href = 'auth.html'; return; }
+      if (item.available === false) { toast('Блюдо временно недоступно', 'error'); return; }
+      await addToCart(item);
+      toast(`${item.name} добавлен! 🛒`, 'success');
+      updateCartBadge();
+    });
+
+    loadRelated(item.category, item.id);
+  }
+
+  async function loadRelated(cat, excludeId) {
+    const q = query(collection(db, 'menuItems'), where('category','==',cat), limit(4), orderBy('nameLower'));
+    const snap = await getDocs(q);
+    const items = snap.docs.filter(d => d.id !== excludeId).slice(0,3).map(d => ({id:d.id,...d.data()}));
+    const grid = document.getElementById('relatedGrid');
+    if (!grid) return;
+    grid.innerHTML = items.length ? items.map(i => `
+      <a href="item.html?id=${i.id}" class="menu-card" style="text-decoration:none;">
+        <div class="card-img-wrap"><img src="${i.imageUrl || 'https://placehold.co/400x300/ff6b35/white?text=🍽️'}" alt="${i.name}" loading="lazy"/></div>
+        <div class="card-body">
+          <div class="card-name">${i.name}</div>
+          <div class="card-footer"><span class="card-price">${i.price} ₽</span></div>
+        </div>
+      </a>`).join('') : '<p style="color:var(--text-muted)">Похожих блюд нет</p>';
+  }
+
+  async function updateCartBadge() {
+    const items = await getCart();
+    const total = items.reduce((s,i) => s + i.qty, 0);
+    const badge = document.getElementById('cartBadge');
+    badge.textContent = total;
+    badge.classList.toggle('hidden', total === 0);
+  }
+
+  function toast(msg, type='') {
+    const c = document.getElementById('toastContainer');
+    const t = document.createElement('div');
+    t.className = `toast ${type}`; t.textContent = msg; c.appendChild(t);
+    setTimeout(() => t.remove(), 3500);
+  }
+
+  loadItem();
+</script>
+</body>
+</html>

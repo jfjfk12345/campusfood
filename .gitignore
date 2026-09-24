@@ -1,0 +1,11 @@
+﻿# Firebase
+.firebase/
+firebase-debug.log
+.firebaserc
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets (don't accidentally commit real config!)
+# js/firebase-config.js  <- uncomment if you use env vars

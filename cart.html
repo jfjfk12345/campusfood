@@ -1,0 +1,152 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CampusFood – Корзина</title>
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+
+<nav class="navbar">
+  <div class="navbar-inner">
+    <a class="logo" href="index.html">🍽️ CampusFood</a>
+    <div class="nav-links">
+      <a href="index.html">Меню</a>
+      <a href="cart.html" class="active">Корзина</a>
+      <a href="profile.html">Личный кабинет</a>
+      <a href="admin.html" id="adminLink" class="hidden">Админ</a>
+    </div>
+    <div class="nav-user" id="navUser">
+      <span id="navUserName" style="font-weight:600; font-size:.9rem;"></span>
+      <button class="btn btn-sm btn-secondary" id="logoutBtn">Выйти</button>
+    </div>
+  </div>
+</nav>
+
+<div class="cart-section">
+  <h1 style="margin-bottom:1.5rem;">🛒 Ваша корзина</h1>
+
+  <div id="cartItems"><div class="spinner"></div></div>
+
+  <div id="cartFooter" class="hidden">
+    <div class="cart-total-box">
+      <div class="cart-total-row"><span>Товаров:</span><span id="totalCount"></span></div>
+      <div class="cart-total-row grand"><span>Итого:</span><span id="totalPrice"></span></div>
+      <div class="form-group mt-2">
+        <label>⏰ Время получения</label>
+        <input type="time" id="pickupTime" min="08:00" max="17:00"/>
+      </div>
+      <div class="form-group">
+        <label>💬 Комментарий (необязательно)</label>
+        <textarea id="orderComment" rows="2" placeholder="Аллергии, пожелания..."></textarea>
+      </div>
+      <button class="btn btn-primary" style="width:100%;font-size:1rem;padding:.8rem" onclick="handleOrder()">✅ Оформить заказ</button>
+    </div>
+  </div>
+
+  <div id="emptyCart" class="hidden">
+    <div class="empty-state">
+      <div class="icon">🛒</div>
+      <p>Корзина пуста</p>
+      <a href="index.html" class="btn btn-primary mt-2">Перейти в меню</a>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script type="module">
+  import { auth } from './js/firebase-config.js';
+  import { onAuthChange, getCurrentUserProfile } from './js/auth.js';
+  import { getCart, updateQty, removeFromCart } from './js/cart.js';
+  import { placeOrder } from './js/orders.js';
+  import { signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+
+  let cartData = [];
+
+  onAuthChange(async user => {
+    if (!user) { location.href = 'auth.html'; return; }
+    const p = await getCurrentUserProfile();
+    document.getElementById('navUserName').textContent = p?.displayName || user.email;
+    if (p?.role === 'admin') document.getElementById('adminLink').classList.remove('hidden');
+    document.getElementById('logoutBtn').onclick = () => signOut(auth);
+    loadCart();
+  });
+
+  async function loadCart() {
+    cartData = await getCart();
+    renderCart();
+  }
+
+  function renderCart() {
+    const container = document.getElementById('cartItems');
+    const footer    = document.getElementById('cartFooter');
+    const empty     = document.getElementById('emptyCart');
+
+    if (!cartData.length) {
+      container.innerHTML = '';
+      footer.classList.add('hidden');
+      empty.classList.remove('hidden');
+      return;
+    }
+    empty.classList.add('hidden');
+    footer.classList.remove('hidden');
+
+    container.innerHTML = cartData.map((item, idx) => `
+      <div class="cart-item" id="ci-${item.id}">
+        <img class="cart-item-img" src="${item.imageUrl || 'https://placehold.co/80x80/ff6b35/white?text=🍽️'}" alt="${item.name}"/>
+        <div class="cart-item-info">
+          <div class="cart-item-name">${item.name}</div>
+          <div class="cart-item-price">${item.price} ₽ / шт.</div>
+        </div>
+        <div class="qty-control">
+          <button class="qty-btn" onclick="changeQty('${item.id}',${item.qty - 1})">−</button>
+          <span class="qty-val">${item.qty}</span>
+          <button class="qty-btn" onclick="changeQty('${item.id}',${item.qty + 1})">+</button>
+        </div>
+        <div style="font-weight:800;min-width:70px;text-align:right">${item.price * item.qty} ₽</div>
+        <button class="btn btn-danger btn-sm btn-icon" onclick="removeItem('${item.id}')">🗑️</button>
+      </div>`).join('');
+
+    const totalCount = cartData.reduce((s,i) => s + i.qty, 0);
+    const totalPrice = cartData.reduce((s,i) => s + i.price * i.qty, 0);
+    document.getElementById('totalCount').textContent = totalCount;
+    document.getElementById('totalPrice').textContent = `${totalPrice} ₽`;
+  }
+
+  window.changeQty = async (id, qty) => {
+    await updateQty(id, qty);
+    cartData = await getCart();
+    renderCart();
+  };
+
+  window.removeItem = async (id) => {
+    await removeFromCart(id);
+    cartData = cartData.filter(i => i.id !== id);
+    renderCart();
+    toast('Блюдо удалено из корзины');
+  };
+
+  window.handleOrder = async () => {
+    const time    = document.getElementById('pickupTime').value;
+    const comment = document.getElementById('orderComment').value;
+    if (!time) { toast('Укажите время получения заказа', 'error'); return; }
+    try {
+      const orderId = await placeOrder(time, comment);
+      toast(`Заказ #${orderId.slice(-6).toUpperCase()} оформлен! 🎉`, 'success');
+      cartData = [];
+      renderCart();
+      setTimeout(() => location.href = 'profile.html', 2000);
+    } catch(e) { toast(e.message, 'error'); }
+  };
+
+  function toast(msg, type='') {
+    const c = document.getElementById('toastContainer');
+    const t = document.createElement('div');
+    t.className = `toast ${type}`; t.textContent = msg; c.appendChild(t);
+    setTimeout(() => t.remove(), 3500);
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,95 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CampusFood – Вход / Регистрация</title>
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+
+<section class="auth-section">
+  <div class="auth-card" id="loginCard">
+    <div class="logo" style="justify-content:center;margin-bottom:1.5rem;">🍽️ CampusFood</div>
+    <h2>Вход в аккаунт</h2>
+    <div class="form-group"><label>Email</label><input type="email" id="loginEmail" placeholder="example@mail.com"/></div>
+    <div class="form-group"><label>Пароль</label><input type="password" id="loginPassword" placeholder="••••••"/></div>
+    <button class="btn btn-primary" style="width:100%;padding:.7rem" onclick="handleLogin()">Войти</button>
+    <p class="auth-switch mt-2"><a onclick="switchToReset()">Забыли пароль?</a></p>
+    <p class="auth-switch"><a onclick="showReg()">Нет аккаунта? Зарегистрироваться</a></p>
+  </div>
+
+  <div class="auth-card hidden" id="regCard">
+    <div class="logo" style="justify-content:center;margin-bottom:1.5rem;">🍽️ CampusFood</div>
+    <h2>Регистрация</h2>
+    <div class="form-group"><label>Имя</label><input type="text" id="regName" placeholder="Ваше имя"/></div>
+    <div class="form-group"><label>Email</label><input type="email" id="regEmail" placeholder="example@mail.com"/></div>
+    <div class="form-group"><label>Пароль</label><input type="password" id="regPassword" placeholder="Минимум 6 символов"/></div>
+    <button class="btn btn-primary" style="width:100%;padding:.7rem" onclick="handleRegister()">Создать аккаунт</button>
+    <p class="auth-switch mt-2"><a onclick="showLogin()">Уже есть аккаунт? Войти</a></p>
+  </div>
+
+  <div class="auth-card hidden" id="resetCard">
+    <div class="logo" style="justify-content:center;margin-bottom:1.5rem;">🍽️ CampusFood</div>
+    <h2>Сброс пароля</h2>
+    <div class="form-group"><label>Email</label><input type="email" id="resetEmail" placeholder="example@mail.com"/></div>
+    <button class="btn btn-primary" style="width:100%;padding:.7rem" onclick="handleReset()">Отправить ссылку</button>
+    <p class="auth-switch mt-2"><a onclick="showLogin()">← Назад</a></p>
+  </div>
+</section>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script type="module">
+  import { login, register, resetPassword, onAuthChange } from './js/auth.js';
+
+  onAuthChange(user => { if (user) location.href = 'index.html'; });
+
+  window.showLogin = () => { hide('regCard'); hide('resetCard'); show('loginCard'); };
+  window.showReg   = () => { hide('loginCard'); hide('resetCard'); show('regCard'); };
+  window.switchToReset = () => { hide('loginCard'); show('resetCard'); };
+
+  window.handleLogin = async () => {
+    const email = document.getElementById('loginEmail').value;
+    const pass  = document.getElementById('loginPassword').value;
+    try { await login(email, pass); }
+    catch(e) { toast(friendlyError(e.code), 'error'); }
+  };
+
+  window.handleRegister = async () => {
+    const name  = document.getElementById('regName').value.trim();
+    const email = document.getElementById('regEmail').value;
+    const pass  = document.getElementById('regPassword').value;
+    if (!name) { toast('Введите имя', 'error'); return; }
+    try { await register(email, pass, name); }
+    catch(e) { toast(friendlyError(e.code), 'error'); }
+  };
+
+  window.handleReset = async () => {
+    const email = document.getElementById('resetEmail').value;
+    try { await resetPassword(email); toast('Ссылка отправлена на почту ✉️', 'success'); }
+    catch(e) { toast(friendlyError(e.code), 'error'); }
+  };
+
+  function friendlyError(code) {
+    const m = {
+      'auth/invalid-email': 'Неверный формат email',
+      'auth/user-not-found': 'Пользователь не найден',
+      'auth/wrong-password': 'Неверный пароль',
+      'auth/email-already-in-use': 'Email уже зарегистрирован',
+      'auth/weak-password': 'Пароль слишком короткий',
+    };
+    return m[code] || 'Произошла ошибка. Попробуйте снова.';
+  }
+
+  function show(id) { document.getElementById(id).classList.remove('hidden'); }
+  function hide(id) { document.getElementById(id).classList.add('hidden'); }
+  function toast(msg, type='') {
+    const c = document.getElementById('toastContainer');
+    const t = document.createElement('div');
+    t.className = `toast ${type}`; t.textContent = msg; c.appendChild(t);
+    setTimeout(() => t.remove(), 3500);
+  }
+</script>
+</body>
+</html>
