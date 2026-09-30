@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8"/>
@@ -56,97 +56,6 @@
 
 <div class="toast-container" id="toastContainer"></div>
 
-<script type="module">
-  import { auth } from './js/firebase-config.js';
-  import { onAuthChange, getCurrentUserProfile } from './js/auth.js';
-  import { getCart, updateQty, removeFromCart } from './js/cart.js';
-  import { placeOrder } from './js/orders.js';
-  import { signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-
-  let cartData = [];
-
-  onAuthChange(async user => {
-    if (!user) { location.href = 'auth.html'; return; }
-    const p = await getCurrentUserProfile();
-    document.getElementById('navUserName').textContent = p?.displayName || user.email;
-    if (p?.role === 'admin') document.getElementById('adminLink').classList.remove('hidden');
-    document.getElementById('logoutBtn').onclick = () => signOut(auth);
-    loadCart();
-  });
-
-  async function loadCart() {
-    cartData = await getCart();
-    renderCart();
-  }
-
-  function renderCart() {
-    const container = document.getElementById('cartItems');
-    const footer    = document.getElementById('cartFooter');
-    const empty     = document.getElementById('emptyCart');
-
-    if (!cartData.length) {
-      container.innerHTML = '';
-      footer.classList.add('hidden');
-      empty.classList.remove('hidden');
-      return;
-    }
-    empty.classList.add('hidden');
-    footer.classList.remove('hidden');
-
-    container.innerHTML = cartData.map((item, idx) => `
-      <div class="cart-item" id="ci-${item.id}">
-        <img class="cart-item-img" src="${item.imageUrl || 'https://placehold.co/80x80/ff6b35/white?text=🍽️'}" alt="${item.name}"/>
-        <div class="cart-item-info">
-          <div class="cart-item-name">${item.name}</div>
-          <div class="cart-item-price">${item.price} ₽ / шт.</div>
-        </div>
-        <div class="qty-control">
-          <button class="qty-btn" onclick="changeQty('${item.id}',${item.qty - 1})">−</button>
-          <span class="qty-val">${item.qty}</span>
-          <button class="qty-btn" onclick="changeQty('${item.id}',${item.qty + 1})">+</button>
-        </div>
-        <div style="font-weight:800;min-width:70px;text-align:right">${item.price * item.qty} ₽</div>
-        <button class="btn btn-danger btn-sm btn-icon" onclick="removeItem('${item.id}')">🗑️</button>
-      </div>`).join('');
-
-    const totalCount = cartData.reduce((s,i) => s + i.qty, 0);
-    const totalPrice = cartData.reduce((s,i) => s + i.price * i.qty, 0);
-    document.getElementById('totalCount').textContent = totalCount;
-    document.getElementById('totalPrice').textContent = `${totalPrice} ₽`;
-  }
-
-  window.changeQty = async (id, qty) => {
-    await updateQty(id, qty);
-    cartData = await getCart();
-    renderCart();
-  };
-
-  window.removeItem = async (id) => {
-    await removeFromCart(id);
-    cartData = cartData.filter(i => i.id !== id);
-    renderCart();
-    toast('Блюдо удалено из корзины');
-  };
-
-  window.handleOrder = async () => {
-    const time    = document.getElementById('pickupTime').value;
-    const comment = document.getElementById('orderComment').value;
-    if (!time) { toast('Укажите время получения заказа', 'error'); return; }
-    try {
-      const orderId = await placeOrder(time, comment);
-      toast(`Заказ #${orderId.slice(-6).toUpperCase()} оформлен! 🎉`, 'success');
-      cartData = [];
-      renderCart();
-      setTimeout(() => location.href = 'profile.html', 2000);
-    } catch(e) { toast(e.message, 'error'); }
-  };
-
-  function toast(msg, type='') {
-    const c = document.getElementById('toastContainer');
-    const t = document.createElement('div');
-    t.className = `toast ${type}`; t.textContent = msg; c.appendChild(t);
-    setTimeout(() => t.remove(), 3500);
-  }
-</script>
+<script type="module" src="js/cart.js"></script>
 </body>
 </html>

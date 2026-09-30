@@ -1,18 +1,15 @@
-﻿// ============================================================
-//  firebase-config.js  –  Замените значения на свои!
-//  Firebase Console → Project Settings → Your Apps → Config
-// ============================================================
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+﻿import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getFirestore }   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth }        from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
 const firebaseConfig = {
-  apiKey:            'YOUR_API_KEY',
-  authDomain:        'YOUR_PROJECT_ID.firebaseapp.com',
-  projectId:         'YOUR_PROJECT_ID',
-  storageBucket:     'YOUR_PROJECT_ID.appspot.com',
-  messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-  appId:             'YOUR_APP_ID'
+  apiKey: "AIzaSyDykTrZuf_J34VZIbYAwtISAq-mGCM_5bc",
+  authDomain: "campusfood-d8b45.firebaseapp.com",
+  projectId: "campusfood-d8b45",
+  storageBucket: "campusfood-d8b45.firebasestorage.app",
+  messagingSenderId: "137509458524",
+  appId: "1:137509458524:web:c75610b067937b02648c99",
+  measurementId: "G-KJ8NM8V9HM"
 };
 
 const app = initializeApp(firebaseConfig);

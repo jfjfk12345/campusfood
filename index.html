@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8"/>
@@ -9,7 +9,7 @@
 </head>
 <body>
 
-<!-- ===== NAVBAR ===== -->
+<!-- ===== НАВИГАЦИЯ ===== -->
 <nav class="navbar">
   <div class="navbar-inner">
     <a class="logo" href="index.html">🍽️ CampusFood</a>
@@ -19,7 +19,7 @@
       <a href="profile.html">Личный кабинет</a>
       <a href="admin.html" id="adminLink" class="hidden">Админ</a>
     </div>
-    <div class="nav-auth" id="navAuth">
+    <div class="nav-auth auth-pending" id="navAuth">
       <button class="btn btn-outline btn-sm" onclick="openLoginModal()">Войти</button>
       <button class="btn btn-primary btn-sm" onclick="openRegModal()">Регистрация</button>
     </div>
@@ -30,10 +30,10 @@
   </div>
 </nav>
 
-<!-- ===== HERO ===== -->
+<!-- ===== ГЛАВНЫЙ БАННЕР ===== -->
 <section class="hero">
   <div class="hero-content">
-    <h1>🍕 Закажи еду<br/><span>заранее</span> — без очереди</h1>
+    <h1>Закажи еду<br/><span>заранее</span> — без очереди</h1>
     <p>Онлайн-заказ в столовой колледжа. Выбери блюда, укажи время — и просто забери.</p>
     <div class="hero-actions">
       <button class="btn btn-primary" onclick="document.getElementById('menuSection').scrollIntoView({behavior:'smooth'})">Смотреть меню</button>
@@ -42,10 +42,9 @@
   </div>
 </section>
 
-<!-- ===== TOOLBAR ===== -->
+<!-- ===== ПАНЕЛЬ ИНСТРУМЕНТОВ ===== -->
 <div class="toolbar">
   <div class="search-wrap">
-    <span class="search-icon">🔍</span>
     <input type="text" id="searchInput" placeholder="Поиск блюд..." oninput="handleSearch(this.value)"/>
   </div>
   <div class="filter-group" id="filterChips">
@@ -64,21 +63,26 @@
   </select>
 </div>
 
-<!-- ===== MENU GRID ===== -->
+<!-- ===== СЕТКА МЕНЮ ===== -->
 <section class="menu-section" id="menuSection">
   <h2 class="section-title">🍽️ Меню дня</h2>
-  <div class="menu-grid" id="menuGrid">
-    <div class="spinner"></div>
+  <div class="menu-grid" id="menuGrid" aria-busy="true" aria-label="Загрузка меню">
+    <div class="menu-skeleton-card" aria-hidden="true"><div class="menu-skeleton-image"></div><div class="menu-skeleton-body"><div class="menu-skeleton-line"></div><div class="menu-skeleton-line"></div><div class="menu-skeleton-line is-price"></div></div></div>
+    <div class="menu-skeleton-card" aria-hidden="true"><div class="menu-skeleton-image"></div><div class="menu-skeleton-body"><div class="menu-skeleton-line"></div><div class="menu-skeleton-line"></div><div class="menu-skeleton-line is-price"></div></div></div>
+    <div class="menu-skeleton-card" aria-hidden="true"><div class="menu-skeleton-image"></div><div class="menu-skeleton-body"><div class="menu-skeleton-line"></div><div class="menu-skeleton-line"></div><div class="menu-skeleton-line is-price"></div></div></div>
+    <div class="menu-skeleton-card" aria-hidden="true"><div class="menu-skeleton-image"></div><div class="menu-skeleton-body"><div class="menu-skeleton-line"></div><div class="menu-skeleton-line"></div><div class="menu-skeleton-line is-price"></div></div></div>
+    <div class="menu-skeleton-card" aria-hidden="true"><div class="menu-skeleton-image"></div><div class="menu-skeleton-body"><div class="menu-skeleton-line"></div><div class="menu-skeleton-line"></div><div class="menu-skeleton-line is-price"></div></div></div>
+    <div class="menu-skeleton-card" aria-hidden="true"><div class="menu-skeleton-image"></div><div class="menu-skeleton-body"><div class="menu-skeleton-line"></div><div class="menu-skeleton-line"></div><div class="menu-skeleton-line is-price"></div></div></div>
   </div>
   <div class="load-more-wrap">
     <button id="loadMoreBtn" class="btn btn-outline hidden" onclick="handleLoadMore()">Показать ещё</button>
   </div>
 </section>
 
-<!-- ===== TOAST CONTAINER ===== -->
+<!-- ===== КОНТЕЙНЕР УВЕДОМЛЕНИЙ ===== -->
 <div class="toast-container" id="toastContainer"></div>
 
-<!-- ===== LOGIN MODAL ===== -->
+<!-- ===== ОКНО ВХОДА ===== -->
 <div class="modal-overlay" id="loginModal">
   <div class="modal">
     <button class="modal-close" onclick="closeModal('loginModal')">✕</button>
@@ -91,7 +95,7 @@
   </div>
 </div>
 
-<!-- ===== REGISTER MODAL ===== -->
+<!-- ===== ОКНО РЕГИСТРАЦИИ ===== -->
 <div class="modal-overlay" id="regModal">
   <div class="modal">
     <button class="modal-close" onclick="closeModal('regModal')">✕</button>
@@ -104,7 +108,7 @@
   </div>
 </div>
 
-<!-- ===== RESET MODAL ===== -->
+<!-- ===== ОКНО СБРОСА ПАРОЛЯ ===== -->
 <div class="modal-overlay" id="resetModal">
   <div class="modal">
     <button class="modal-close" onclick="closeModal('resetModal')">✕</button>
@@ -114,171 +118,6 @@
   </div>
 </div>
 
-<script type="module">
-  import { auth }  from './js/firebase-config.js';
-  import { login, register, logout, resetPassword, onAuthChange, getCurrentUserProfile } from './js/auth.js';
-  import { subscribeMenu, loadMore, searchMenu, setCategory, setSort } from './js/menu.js';
-  import { addToCart, getCart } from './js/cart.js';
-  import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-
-  // --- State ---
-  let currentItems = [];
-  let searchTimeout;
-  let lastVisible = null;
-
-  // --- Auth UI ---
-  onAuthChange(async user => {
-    const navAuth = document.getElementById('navAuth');
-    const navUser = document.getElementById('navUser');
-    const adminLink = document.getElementById('adminLink');
-    if (user) {
-      navAuth.classList.add('hidden');
-      navUser.classList.remove('hidden');
-      const profile = await getCurrentUserProfile();
-      document.getElementById('navUserName').textContent = profile?.displayName || user.email;
-      if (profile?.role === 'admin') adminLink.classList.remove('hidden');
-      updateCartBadge();
-    } else {
-      navAuth.classList.remove('hidden');
-      navUser.classList.add('hidden');
-      adminLink.classList.add('hidden');
-    }
-  });
-
-  // --- Menu Subscription ---
-  subscribeMenu((items, append) => {
-    renderMenu(items, append);
-    lastVisible = items.length;
-    document.getElementById('loadMoreBtn').classList.toggle('hidden', items.length < 12);
-  });
-
-  function renderMenu(items, append = false) {
-    const grid = document.getElementById('menuGrid');
-    if (!append) {
-      currentItems = items;
-      grid.innerHTML = items.length ? '' : '<div class="empty-state"><div class="icon">🍽️</div><p>Блюда не найдены</p></div>';
-    } else {
-      currentItems = [...currentItems, ...items];
-    }
-    items.forEach(item => {
-      const card = document.createElement('div');
-      card.className = 'menu-card';
-      card.innerHTML = `
-        <a href="item.html?id=${item.id}">
-          <div class="card-img-wrap">
-            <img src="${item.imageUrl || 'https://placehold.co/400x300/ff6b35/white?text=🍽️'}" alt="${item.name}" loading="lazy"/>
-            <span class="card-badge">${categoryLabel(item.category)}</span>
-          </div>
-          <div class="card-body">
-            <div class="card-name">${item.name}</div>
-            <div class="card-desc">${item.description || ''}</div>
-            <div class="card-footer">
-              <span class="card-price">${item.price} ₽</span>
-              <button class="btn btn-primary btn-sm" onclick="window.addItem(event,'${item.id}','${item.name.replace(/'/g,"\\'")}',${item.price},'${item.imageUrl || ''}')">+ В корзину</button>
-            </div>
-          </div>
-        </a>`;
-      grid.appendChild(card);
-    });
-  }
-
-  function categoryLabel(cat) {
-    const m = {main:'Горячее',salad:'Салат',soup:'Суп',drink:'Напиток',dessert:'Десерт',bread:'Выпечка'};
-    return m[cat] || cat;
-  }
-
-  // --- Globals for onclick ---
-  window.openLoginModal = () => openModal('loginModal');
-  window.openRegModal   = () => openModal('regModal');
-  window.closeModal     = closeModalFn;
-  window.switchToReset  = () => { closeModalFn('loginModal'); openModal('resetModal'); };
-
-  window.handleLogin = async () => {
-    const email = document.getElementById('loginEmail').value;
-    const pass  = document.getElementById('loginPassword').value;
-    try { await login(email, pass); closeModalFn('loginModal'); toast('Добро пожаловать! 👋', 'success'); }
-    catch(e) { toast(e.message, 'error'); }
-  };
-
-  window.handleRegister = async () => {
-    const name  = document.getElementById('regName').value;
-    const email = document.getElementById('regEmail').value;
-    const pass  = document.getElementById('regPassword').value;
-    try { await register(email, pass, name); closeModalFn('regModal'); toast('Аккаунт создан! 🎉', 'success'); }
-    catch(e) { toast(e.message, 'error'); }
-  };
-
-  window.handleReset = async () => {
-    const email = document.getElementById('resetEmail').value;
-    try { await resetPassword(email); closeModalFn('resetModal'); toast('Ссылка отправлена на почту', 'success'); }
-    catch(e) { toast(e.message, 'error'); }
-  };
-
-  window.handleLogout = async () => { await logout(); toast('До свидания! 👋'); };
-
-  window.filterCat = (el, cat) => {
-    document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
-    el.classList.add('active');
-    setCategory(cat);
-    subscribeMenu((items, append) => { renderMenu(items, false); document.getElementById('loadMoreBtn').classList.toggle('hidden', items.length < 12); });
-  };
-
-  window.handleSort = (val) => {
-    setSort(val);
-    subscribeMenu((items, append) => { renderMenu(items, false); document.getElementById('loadMoreBtn').classList.toggle('hidden', items.length < 12); });
-  };
-
-  window.handleSearch = (val) => {
-    clearTimeout(searchTimeout);
-    searchTimeout = setTimeout(async () => {
-      if (!val.trim()) {
-        subscribeMenu((items) => renderMenu(items, false));
-        return;
-      }
-      const items = await searchMenu(val);
-      renderMenu(items, false);
-    }, 400);
-  };
-
-  window.handleLoadMore = async () => {
-    const more = await loadMore((items, append) => renderMenu(items, true));
-    if (!more) document.getElementById('loadMoreBtn').classList.add('hidden');
-  };
-
-  window.addItem = async (e, id, name, price, imageUrl) => {
-    e.preventDefault(); e.stopPropagation();
-    if (!auth.currentUser) { openModal('loginModal'); return; }
-    try {
-      await addToCart({ id, name, price, imageUrl });
-      toast(`${name} добавлен в корзину 🛒`, 'success');
-      updateCartBadge();
-    } catch(err) { toast(err.message, 'error'); }
-  };
-
-  async function updateCartBadge() {
-    const items = await getCart();
-    const total = items.reduce((s,i) => s + i.qty, 0);
-    const badge = document.getElementById('cartBadge');
-    badge.textContent = total;
-    badge.classList.toggle('hidden', total === 0);
-  }
-
-  // Modal helpers
-  function openModal(id) { document.getElementById(id).classList.add('open'); }
-  function closeModalFn(id) { document.getElementById(id).classList.remove('open'); }
-  document.querySelectorAll('.modal-overlay').forEach(overlay => {
-    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('open'); });
-  });
-
-  // Toast
-  window.toast = function(msg, type = '') {
-    const c = document.getElementById('toastContainer');
-    const t = document.createElement('div');
-    t.className = `toast ${type}`;
-    t.textContent = msg;
-    c.appendChild(t);
-    setTimeout(() => t.remove(), 3500);
-  };
-</script>
+<script type="module" src="js/menu.js"></script>
 </body>
 </html>

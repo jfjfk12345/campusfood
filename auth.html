@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8"/>
@@ -40,56 +40,6 @@
 
 <div class="toast-container" id="toastContainer"></div>
 
-<script type="module">
-  import { login, register, resetPassword, onAuthChange } from './js/auth.js';
-
-  onAuthChange(user => { if (user) location.href = 'index.html'; });
-
-  window.showLogin = () => { hide('regCard'); hide('resetCard'); show('loginCard'); };
-  window.showReg   = () => { hide('loginCard'); hide('resetCard'); show('regCard'); };
-  window.switchToReset = () => { hide('loginCard'); show('resetCard'); };
-
-  window.handleLogin = async () => {
-    const email = document.getElementById('loginEmail').value;
-    const pass  = document.getElementById('loginPassword').value;
-    try { await login(email, pass); }
-    catch(e) { toast(friendlyError(e.code), 'error'); }
-  };
-
-  window.handleRegister = async () => {
-    const name  = document.getElementById('regName').value.trim();
-    const email = document.getElementById('regEmail').value;
-    const pass  = document.getElementById('regPassword').value;
-    if (!name) { toast('Введите имя', 'error'); return; }
-    try { await register(email, pass, name); }
-    catch(e) { toast(friendlyError(e.code), 'error'); }
-  };
-
-  window.handleReset = async () => {
-    const email = document.getElementById('resetEmail').value;
-    try { await resetPassword(email); toast('Ссылка отправлена на почту ✉️', 'success'); }
-    catch(e) { toast(friendlyError(e.code), 'error'); }
-  };
-
-  function friendlyError(code) {
-    const m = {
-      'auth/invalid-email': 'Неверный формат email',
-      'auth/user-not-found': 'Пользователь не найден',
-      'auth/wrong-password': 'Неверный пароль',
-      'auth/email-already-in-use': 'Email уже зарегистрирован',
-      'auth/weak-password': 'Пароль слишком короткий',
-    };
-    return m[code] || 'Произошла ошибка. Попробуйте снова.';
-  }
-
-  function show(id) { document.getElementById(id).classList.remove('hidden'); }
-  function hide(id) { document.getElementById(id).classList.add('hidden'); }
-  function toast(msg, type='') {
-    const c = document.getElementById('toastContainer');
-    const t = document.createElement('div');
-    t.className = `toast ${type}`; t.textContent = msg; c.appendChild(t);
-    setTimeout(() => t.remove(), 3500);
-  }
-</script>
+<script type="module" src="js/auth.js"></script>
 </body>
 </html>

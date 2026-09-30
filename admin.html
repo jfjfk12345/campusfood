@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8"/>
@@ -32,7 +32,7 @@
 <div id="adminPanel" class="hidden">
   <div class="admin-section">
     <div class="admin-grid">
-      <!-- Sidebar -->
+      <!-- Боковая панель -->
       <div class="admin-sidebar">
         <h3>ПАНЕЛЬ УПРАВЛЕНИЯ</h3>
         <nav class="admin-nav">
@@ -44,16 +44,16 @@
         </nav>
       </div>
 
-      <!-- Content -->
+      <!-- Содержимое -->
       <div class="admin-content">
 
-        <!-- Stats -->
+        <!-- Статистика -->
         <div id="section-stats">
           <h2 style="margin-bottom:1.5rem;">📊 Статистика</h2>
           <div class="stats-grid" id="statsGrid"><div class="spinner"></div></div>
         </div>
 
-        <!-- Menu CRUD -->
+        <!-- Управление блюдами -->
         <div id="section-menu" class="hidden">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;">
             <h2>🍽️ Управление меню</h2>
@@ -62,13 +62,13 @@
           <div id="menuTableWrap"><div class="spinner"></div></div>
         </div>
 
-        <!-- Orders -->
+        <!-- Заказы -->
         <div id="section-orders" class="hidden">
           <h2 style="margin-bottom:1.5rem;">📦 Все заказы</h2>
           <div id="ordersTableWrap"><div class="spinner"></div></div>
         </div>
 
-        <!-- Queue real-time -->
+        <!-- Очередь заказов в реальном времени -->
         <div id="section-queue" class="hidden">
           <h2 style="margin-bottom:1.5rem;">⏳ Очередь заказов (реальное время)</h2>
           <div class="queue-board" id="queueBoard">
@@ -91,7 +91,7 @@
           </div>
         </div>
 
-        <!-- Users -->
+        <!-- Пользователи -->
         <div id="section-users" class="hidden">
           <h2 style="margin-bottom:1.5rem;">👥 Пользователи</h2>
           <div id="usersTableWrap"><div class="spinner"></div></div>
@@ -102,7 +102,7 @@
   </div>
 </div>
 
-<!-- Add/Edit Menu Item Modal -->
+<!-- Окно добавления или редактирования блюда -->
 <div class="modal-overlay" id="menuItemModal">
   <div class="modal" style="max-width:560px;">
     <button class="modal-close" onclick="closeMenuModal()">✕</button>
@@ -111,7 +111,7 @@
     <div class="form-group"><label>Название</label><input type="text" id="iName" placeholder="Борщ с пампушками"/></div>
     <div class="form-group"><label>Описание</label><textarea id="iDesc" rows="2" placeholder="Краткое описание..."></textarea></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
-      <div class="form-group"><label>Цена (₽)</label><input type="number" id="iPrice" placeholder="150"/></div>
+      <div class="form-group"><label>Цена (₸)</label><input type="number" id="iPrice" placeholder="150"/></div>
       <div class="form-group"><label>Калории (ккал)</label><input type="number" id="iCal" placeholder="300"/></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
@@ -138,219 +138,6 @@
 
 <div class="toast-container" id="toastContainer"></div>
 
-<script type="module">
-  import { auth, db } from './js/firebase-config.js';
-  import { onAuthChange, getCurrentUserProfile } from './js/auth.js';
-  import { isAdmin, addMenuItem, updateMenuItem, deleteMenuItem, getAllUsers, setUserRole, getStats } from './js/admin.js';
-  import { getAllOrders, updateOrderStatus } from './js/orders.js';
-  import { signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-  import {
-    collection, query, orderBy, onSnapshot, getDocs, limit
-  } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-
-  let menuItems = [];
-  let queueUnsubscribe = null;
-
-  onAuthChange(async user => {
-    if (!user) { location.href = 'auth.html'; return; }
-    const p = await getCurrentUserProfile();
-    document.getElementById('navUserName').textContent = p?.displayName || user.email;
-    document.getElementById('logoutBtn').onclick = () => signOut(auth);
-
-    if (!await isAdmin()) {
-      document.getElementById('accessDenied').classList.remove('hidden');
-      return;
-    }
-    document.getElementById('adminPanel').classList.remove('hidden');
-    loadStats();
-  });
-
-  // ---- Section switching ----
-  window.showSection = (name) => {
-    ['stats','menu','orders','queue','users'].forEach(s => {
-      document.getElementById(`section-${s}`).classList.toggle('hidden', s !== name);
-      document.getElementById(`nav-${s}`).classList.toggle('active', s === name);
-    });
-    if (name === 'menu')   loadMenuTable();
-    if (name === 'orders') loadOrdersTable();
-    if (name === 'users')  loadUsersTable();
-    if (name === 'queue')  startQueueSubscription();
-    else if (queueUnsubscribe) { queueUnsubscribe(); queueUnsubscribe = null; }
-  };
-
-  // ---- Stats ----
-  async function loadStats() {
-    const s = await getStats();
-    document.getElementById('statsGrid').innerHTML = `
-      <div class="stat-card"><div class="stat-num">${s.totalOrders}</div><div class="stat-label">Всего заказов</div></div>
-      <div class="stat-card"><div class="stat-num">${s.totalUsers}</div><div class="stat-label">Пользователей</div></div>
-      <div class="stat-card"><div class="stat-num">${s.totalMenuItems}</div><div class="stat-label">Блюд в меню</div></div>
-      <div class="stat-card"><div class="stat-num">${s.totalRevenue} ₽</div><div class="stat-label">Выручка</div></div>`;
-  }
-
-  // ---- Menu CRUD ----
-  async function loadMenuTable() {
-    const snap = await getDocs(query(collection(db, 'menuItems'), orderBy('nameLower'), limit(100)));
-    menuItems = snap.docs.map(d => ({id:d.id,...d.data()}));
-    document.getElementById('menuTableWrap').innerHTML = menuItems.length ? `
-      <table class="admin-table">
-        <thead><tr><th>Название</th><th>Категория</th><th>Цена</th><th>Доступность</th><th>Действия</th></tr></thead>
-        <tbody>${menuItems.map(i => `
-          <tr>
-            <td><strong>${i.name}</strong></td>
-            <td>${i.category}</td>
-            <td>${i.price} ₽</td>
-            <td>${i.available !== false ? '✅' : '❌'}</td>
-            <td>
-              <button class="btn btn-sm btn-outline" onclick="window.editItem('${i.id}')">✏️</button>
-              <button class="btn btn-sm btn-danger"  onclick="window.delItem('${i.id}')">🗑️</button>
-            </td>
-          </tr>`).join('')}
-        </tbody>
-      </table>` : '<p>Меню пустое</p>';
-  }
-
-  window.editItem = (id) => {
-    const i = menuItems.find(m => m.id === id);
-    if (!i) return;
-    document.getElementById('menuModalTitle').textContent = 'Редактировать блюдо';
-    document.getElementById('editItemId').value = id;
-    document.getElementById('iName').value   = i.name || '';
-    document.getElementById('iDesc').value   = i.description || '';
-    document.getElementById('iPrice').value  = i.price || '';
-    document.getElementById('iCal').value    = i.calories || '';
-    document.getElementById('iWeight').value = i.weight || '';
-    document.getElementById('iCat').value    = i.category || 'main';
-    document.getElementById('iImg').value    = i.imageUrl || '';
-    document.getElementById('iAvail').checked = i.available !== false;
-    document.getElementById('menuItemModal').classList.add('open');
-  };
-
-  window.delItem = async (id) => {
-    if (!confirm('Удалить блюдо?')) return;
-    await deleteMenuItem(id);
-    toast('Блюдо удалено', 'success');
-    loadMenuTable();
-  };
-
-  window.openMenuModal = () => {
-    document.getElementById('menuModalTitle').textContent = 'Добавить блюдо';
-    document.getElementById('editItemId').value = '';
-    ['iName','iDesc','iPrice','iCal','iWeight','iImg'].forEach(id => document.getElementById(id).value = '');
-    document.getElementById('iCat').value = 'main';
-    document.getElementById('iAvail').checked = true;
-    document.getElementById('menuItemModal').classList.add('open');
-  };
-  window.closeMenuModal = () => document.getElementById('menuItemModal').classList.remove('open');
-
-  window.saveMenuItem = async () => {
-    const id     = document.getElementById('editItemId').value;
-    const data   = {
-      name:        document.getElementById('iName').value.trim(),
-      description: document.getElementById('iDesc').value.trim(),
-      price:       parseFloat(document.getElementById('iPrice').value) || 0,
-      calories:    parseInt(document.getElementById('iCal').value) || 0,
-      weight:      parseInt(document.getElementById('iWeight').value) || 0,
-      category:    document.getElementById('iCat').value,
-      imageUrl:    document.getElementById('iImg').value.trim(),
-      available:   document.getElementById('iAvail').checked,
-    };
-    if (!data.name) { toast('Введите название', 'error'); return; }
-    try {
-      if (id) await updateMenuItem(id, data);
-      else    await addMenuItem(data);
-      window.closeMenuModal();
-      toast(id ? 'Блюдо обновлено ✅' : 'Блюдо добавлено ✅', 'success');
-      loadMenuTable();
-    } catch(e) { toast(e.message, 'error'); }
-  };
-
-  // ---- Orders ----
-  async function loadOrdersTable() {
-    const orders = await getAllOrders();
-    const statusMap = {pending:'Ожидает',preparing:'Готовится',ready:'Готово',completed:'Выдан',cancelled:'Отменён'};
-    document.getElementById('ordersTableWrap').innerHTML = orders.length ? `
-      <table class="admin-table">
-        <thead><tr><th>ID</th><th>Email</th><th>Сумма</th><th>Время</th><th>Статус</th><th>Действие</th></tr></thead>
-        <tbody>${orders.map(o => `
-          <tr>
-            <td>#${o.id.slice(-6).toUpperCase()}</td>
-            <td>${o.userEmail || ''}</td>
-            <td>${o.total} ₽</td>
-            <td>${o.pickupTime || '—'}</td>
-            <td><span class="order-status status-${o.status}">${statusMap[o.status]||o.status}</span></td>
-            <td>
-              <select onchange="window.changeStatus('${o.id}',this.value)" style="font-size:.82rem;padding:.3rem .5rem;border-radius:6px;border:1px solid var(--border)">
-                ${['pending','preparing','ready','completed','cancelled'].map(s => `<option value="${s}" ${s===o.status?'selected':''}>${statusMap[s]}</option>`).join('')}
-              </select>
-            </td>
-          </tr>`).join('')}
-        </tbody>
-      </table>` : '<p>Заказов нет</p>';
-  }
-
-  window.changeStatus = async (orderId, status) => {
-    await updateOrderStatus(orderId, status);
-    toast(`Статус изменён на "${status}"`, 'success');
-  };
-
-  // ---- Queue real-time ----
-  function startQueueSubscription() {
-    if (queueUnsubscribe) queueUnsubscribe();
-    const q = query(collection(db, 'orders'), orderBy('createdAt','desc'), limit(50));
-    queueUnsubscribe = onSnapshot(q, snap => {
-      const orders = snap.docs.map(d => ({id:d.id,...d.data()}));
-      ['pending','preparing','ready','completed'].forEach(status => {
-        const col = document.getElementById(`q-${status}`);
-        const items = orders.filter(o => o.status === status);
-        col.innerHTML = items.map(o => `
-          <div class="queue-item">
-            <div class="queue-item-id">#${o.id.slice(-6).toUpperCase()}</div>
-            <div style="font-size:.8rem;color:var(--text-muted)">${o.pickupTime||''} | ${o.total}₽</div>
-            ${status !== 'completed' ? `
-              <button class="btn btn-sm btn-success" style="width:100%;margin-top:.4rem" onclick="window.advanceOrder('${o.id}','${status}')">
-                ${status==='pending'?'▶ Готовить':status==='preparing'?'✅ Готово':'🏁 Выдать'}
-              </button>` : ''}
-          </div>`).join('') || '<p style="font-size:.82rem;color:var(--text-muted);text-align:center">Пусто</p>';
-      });
-    });
-  }
-
-  window.advanceOrder = async (id, currentStatus) => {
-    const next = {pending:'preparing',preparing:'ready',ready:'completed'};
-    await updateOrderStatus(id, next[currentStatus]);
-  };
-
-  // ---- Users ----
-  async function loadUsersTable() {
-    const users = await getAllUsers();
-    document.getElementById('usersTableWrap').innerHTML = users.length ? `
-      <table class="admin-table">
-        <thead><tr><th>Имя</th><th>Email</th><th>Роль</th><th>Действие</th></tr></thead>
-        <tbody>${users.map(u => `
-          <tr>
-            <td>${u.displayName||'—'}</td>
-            <td>${u.email||''}</td>
-            <td><span class="badge" style="${u.role==='admin'?'background:var(--secondary)':''}">${u.role||'user'}</span></td>
-            <td>
-              ${u.role !== 'admin'
-                ? `<button class="btn btn-sm btn-secondary" onclick="window.makeAdmin('${u.id}')">Сделать admin</button>`
-                : `<button class="btn btn-sm btn-outline" onclick="window.makeUser('${u.id}')">Снять admin</button>`}
-            </td>
-          </tr>`).join('')}
-        </tbody>
-      </table>` : '<p>Пользователей нет</p>';
-  }
-
-  window.makeAdmin = async (uid) => { await setUserRole(uid,'admin'); toast('Роль admin назначена','success'); loadUsersTable(); };
-  window.makeUser  = async (uid) => { await setUserRole(uid,'user');  toast('Роль понижена до user','success'); loadUsersTable(); };
-
-  function toast(msg, type='') {
-    const c = document.getElementById('toastContainer');
-    const t = document.createElement('div');
-    t.className = `toast ${type}`; t.textContent = msg; c.appendChild(t);
-    setTimeout(() => t.remove(), 3500);
-  }
-</script>
+<script type="module" src="js/admin.js"></script>
 </body>
 </html>
